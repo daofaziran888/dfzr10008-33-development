@@ -30,7 +30,7 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
-@router.get("/{entry_id}", response_model=dict)
+@router.get("/{entry_id:int}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条数据产品明细；不存在时给出可读的错误说明。"""
     entry = service.get_entry(entry_id)
@@ -42,16 +42,16 @@ def get_entry(entry_id: int) -> dict:
 @router.post("", response_model=ActionResult)
 def create_entry(payload: EntryPayload) -> ActionResult:
     """登记一条数据产品，缺字段时说明原因而不是静默丢弃。"""
-    entry, missing = service.create_entry(payload.values)
+    entry, missing = service.create_entry(payload.resolved_values())
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message="数据产品已登记", entry=entry)
 
 
-@router.post("/{entry_id}/actions", response_model=ActionResult)
+@router.post("/{entry_id:int}/actions", response_model=ActionResult)
 def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     """对单条数据产品执行发布产品、下线产品、删除产品；不允许的动作会被拦下并说明原因。"""
-    action = str(payload.values.get("action") or "").strip()
+    action = str(payload.resolved_values().get("action") or "").strip()
     entry, message = service.run_action(entry_id, action)
     if entry is None:
         return ActionResult(ok=False, message=message)

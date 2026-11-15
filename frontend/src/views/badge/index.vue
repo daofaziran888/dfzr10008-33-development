@@ -31,12 +31,18 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>未解决反馈</th>
+          <th>准入结果</th>
           <th>可执行动作</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td>{{ row['未解决反馈数量'] ?? 0 }}</td>
+          <td>
+            <span class="pill" :class="gateClass(row)">{{ gateLabel(row) }}</span>
+          </td>
           <td class="row-actions">
             <button
               v-for="action in actions"
@@ -50,7 +56,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 1" class="empty-state">暂无数据产品认证数据，可先登记认证记录</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无数据产品认证数据，可先登记认证记录</td>
         </tr>
       </tbody>
     </table>
@@ -67,7 +73,7 @@ import { onMounted, ref } from 'vue'
 
 import { request } from '@/api/client'
 
-type Row = Record<string, string | number | null>
+type Row = Record<string, any>
 
 const ENDPOINT = '/api/badge'
 const columns = ["认证编号", "产品名称", "认证类型", "认证标准", "认证机构", "有效期限", "认证结果", "认证状态"]
@@ -90,6 +96,14 @@ function exportRows() {
   window.open(`${ENDPOINT}/export`, '_blank')
 }
 
+function gateClass(row: Row) {
+  return row?.['准入结果'] === '冻结' ? 'pill-danger' : 'pill-success'
+}
+
+function gateLabel(row: Row) {
+  return row?.['准入结果'] ?? '—'
+}
+
 function openCreate() {
   errorMessage.value = '认证记录登记入口尚未接入审批流'
 }
@@ -101,8 +115,9 @@ async function runAction(action: string, row: Row) {
       method: 'POST',
       body: JSON.stringify({ action }),
     })
-    if (!response.ok) {
-      throw new Error('数据产品认证动作未生效，请稍后重试')
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.message || '数据产品认证动作未生效，请稍后重试')
     }
     await reload()
   } catch (error) {

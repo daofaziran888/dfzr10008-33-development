@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
@@ -19,13 +19,27 @@ class ActionResult(BaseModel):
     ok: bool
     message: str
     entry: dict[str, Any] | None = None
+    duplicate: bool = False
 
 
 class EntryPayload(BaseModel):
-    """登记或修改一条业务记录时提交的字段集合。"""
+    """登记或修改一条业务记录时提交的字段集合。
+
+    兼容两种写法：业务字段放在 ``values`` 里，或直接平铺在请求体顶层。
+    前端页面用前者；脚本调试时经常直接 POST ``{"action": "标记解决"}``。
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     values: dict[str, Any] = Field(default_factory=dict)
     remark: str | None = None
+
+    def resolved_values(self) -> dict[str, Any]:
+        """把 values 与顶层平铺字段合并，后写的平铺字段优先。"""
+        merged = dict(self.values)
+        if self.model_extra:
+            merged.update(self.model_extra)
+        return merged
 
 
 
